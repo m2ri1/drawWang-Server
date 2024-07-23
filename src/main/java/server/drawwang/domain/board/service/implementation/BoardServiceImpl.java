@@ -31,25 +31,15 @@ public class BoardServiceImpl implements BoardService {
     @Override
     @Transactional(rollbackFor = {Exception.class})
     public void submitBoard(BoardSubmitRequest request, MultipartFile file) {
-        ThreadEntity threadEntity = threadRepository.findById(request.getThreadId())
-                .orElseThrow(() -> new CustomException(CustomErrorCode.THREAD_NOT_FOUND_ERROR));
-
-        BoardEntity boardEntity = BoardEntity.builder()
-                .userName(request.getUserName())
-                .thread(threadEntity)
-                .imageId(fileStore.storeFile(file))
-                .likes(0)
-                .reports(0)
-                .build();
+        ThreadEntity threadEntity = getThreadEntity(request.getThreadId());
+        BoardEntity boardEntity = createBoardEntity(request, file, threadEntity);
 
         boardRepository.save(boardEntity);
-
         publisher.publishEvent(new SubmittedBoardEvent(threadEntity, boardEntity));
     }
 
     @Override
     public List<ToBoardResponse> listBoard() {
-
         return boardRepository.findAll()
                 .stream()
                 .map(boardEntity -> new ToBoardResponse(
@@ -65,8 +55,7 @@ public class BoardServiceImpl implements BoardService {
     @Override
     @Transactional(rollbackFor = {Exception.class})
     public void boardLike(Long boardId) {
-        BoardEntity boardEntity = boardRepository.findById(boardId)
-                .orElseThrow(() -> new CustomException(CustomErrorCode.BOARD_NOT_FOUND_ERROR));
+        BoardEntity boardEntity = getBoardEntity(boardId);
         boardEntity.plusLike();
 
         publisher.publishEvent(new BoardLikedEvent(boardEntity));
@@ -75,8 +64,27 @@ public class BoardServiceImpl implements BoardService {
     @Override
     @Transactional(rollbackFor = {Exception.class})
     public void boardReport(Long boardId) {
-        BoardEntity boardEntity = boardRepository.findById(boardId)
-                .orElseThrow(() -> new CustomException(CustomErrorCode.BOARD_NOT_FOUND_ERROR));
+        BoardEntity boardEntity = getBoardEntity(boardId);
         boardEntity.plusReports();
+    }
+
+    private ThreadEntity getThreadEntity(Long threadId) {
+        return threadRepository.findById(threadId)
+                .orElseThrow(() -> new CustomException(CustomErrorCode.THREAD_NOT_FOUND_ERROR));
+    }
+
+    private BoardEntity getBoardEntity(Long boardId) {
+        return boardRepository.findById(boardId)
+                .orElseThrow(() -> new CustomException(CustomErrorCode.BOARD_NOT_FOUND_ERROR));
+    }
+
+    private BoardEntity createBoardEntity(BoardSubmitRequest request, MultipartFile file, ThreadEntity threadEntity) {
+        return BoardEntity.builder()
+                .userName(request.getUserName())
+                .thread(threadEntity)
+                .imageId(fileStore.storeFile(file))
+                .likes(0)
+                .reports(0)
+                .build();
     }
 }
